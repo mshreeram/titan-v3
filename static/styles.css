@@ -163,4 +163,7 @@ option:hover {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-grow: 1;
+  flex-direction: column;
+  background: rgb(238, 238, 238);
 }
