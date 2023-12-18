@@ -20,13 +20,10 @@ def index():
     translate_lang = request.form.get('lang')
     voice = request.form.get('voice')
     translate = request.form.get('super')
-    speakerCount = int(request.form.get('speakerCount'))
-    hints = []
-    hints = request.form.get('hints').split(',')
     print(translate)
     filename = f.filename
     f.save('video/' + filename)
-    dub('video/' + filename, 'static/outdir', 'en-IN', [translate_lang], storageBucket=None, phraseHints=hints, speakerCount=speakerCount, voices={translate_lang: f"{translate_lang}-Standard-{voice}"})
+    dub('video/' + filename, 'static/outdir', 'en-IN', [translate_lang], storageBucket=None, speakerCount=1, voices={translate_lang: f"{translate_lang}-Standard-{voice}"})
     baseName = filename.split('.')[0]
     if translate:
       text_super('video/' + filename, baseName, translate_lang)

@@ -1,8 +1,6 @@
 from pydub import AudioSegment
-from google.cloud import speech_v1p1beta1 as speech
 from google.cloud import texttospeech
 from google.cloud import translate_v2 as translate
-from google.cloud import storage
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
 from moviepy.video.tools.subtitles import SubtitlesClip, TextClip
 from typing import NamedTuple, List, Optional, Sequence
@@ -10,19 +8,14 @@ import os
 import shutil
 import ffmpeg
 import time
-import json
 import sys
 import tempfile
-import uuid
 from dotenv import load_dotenv
-import fire
 import html
 import pvleopard
-leopard = pvleopard.create(access_key="lLqy5p+LTPk9vZDhQo0w9EwO++1DiUBCmlXqWkUnwyPsT3g1iej99A==")
-
-
-# Load config in .env file
 load_dotenv()
+
+leopard = pvleopard.create(access_key=os.environ["PV_ACCESS_KEY"])
 
 def extract_audio(videoPath, outputPath):
     video = VideoFileClip(videoPath)
@@ -95,7 +88,6 @@ def extract_sentences_from_srt(srtFilePath):
             line = line.strip()
             if '-->' in line:
               start_time = convert_to_sec(line[0:12])
-              #audio_splits.append(start_time)
               end_time = convert_to_sec(line[18:])
 
               audio_splits.append(start_time)
@@ -118,45 +110,15 @@ def extract_sentences_from_srt(srtFilePath):
     return sentences, audio_splits, durations
 
 def translate_text(input, targetLang):
-    """Translates from sourceLang to targetLang. If sourceLang is empty,
-    it will be auto-detected.
-
-    Args:
-        sentence (String): Sentence to translate
-        targetLang (String): i.e. "en"
-        sourceLang (String, optional): i.e. "es" Defaults to None.
-
-    Returns:
-        String: translated text
-    """
-
     translate_client = translate.Client()
-    result = translate_client.translate(
-        input, target_language=targetLang, source_language="en")
+    result = translate_client.translate(input, target_language=targetLang, source_language="en")
 
     return result['translatedText']
 
 
 def speak(text, languageCode, voiceName=None, speakingRate=1):
-    """Converts text to audio
-
-    Args:
-        text (String): Text to be spoken
-        languageCode (String): Language (i.e. "en")
-        voiceName: (String, optional): See https://cloud.google.com/text-to-speech/docs/voices
-        speakingRate: (int, optional): speed up or slow down speaking
-    Returns:
-        bytes : Audio in wav format
-    """
-
-    # Instantiates a client
     client = texttospeech.TextToSpeechClient()
-
-    # Set the text input to be synthesized
     synthesis_input = texttospeech.SynthesisInput(text=text)
-
-    # Build the voice request, select the language code ("en-US") and the ssml
-    # voice gender ("neutral")
     if not voiceName:
         voice = texttospeech.VoiceSelectionParams(
             language_code=languageCode, ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
@@ -165,37 +127,19 @@ def speak(text, languageCode, voiceName=None, speakingRate=1):
         voice = texttospeech.VoiceSelectionParams(
             language_code=languageCode, name=voiceName
         )
-
-    # Select the type of audio file you want returned
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.MP3,
         speaking_rate=speakingRate
     )
-
-    # Perform the text-to-speech request on the text input with the selected
-    # voice parameters and audio file type
     response = client.synthesize_speech(
         input=synthesis_input,
         voice=voice,
         audio_config=audio_config
     )
-
     return response.audio_content
 
 
 def text_to_speech(text, languageCode, durationSecs, voiceName=None):
-    """Speak text within a certain time limit.
-    If audio already fits within duratinSecs, no changes will be made.
-
-    Args:
-        text (String): Text to be spoken
-        languageCode (String): language code, i.e. "en"
-        durationSecs (int): Time limit in seconds
-        voiceName (String, optional): See https://cloud.google.com/text-to-speech/docs/voices
-
-    Returns:
-        bytes : Audio in wav format
-    """
     def find_duration(audio):
         file = tempfile.NamedTemporaryFile(mode="w+b")
         file.write(audio)
@@ -224,55 +168,31 @@ def text_to_speech(text, languageCode, durationSecs, voiceName=None):
     return baseAudio
 
 def merge_audio(startPostions, audioDir, videoPath, outputPath):
-  audioFiles = os.listdir(audioDir)
-  audioFiles.sort(key=lambda x: int(x.split('.')[0]))
+    audioFiles = os.listdir(audioDir)
+    audioFiles.sort(key=lambda x: int(x.split('.')[0]))
 
-  segments = [AudioSegment.from_mp3(os.path.join(audioDir, x)) for x in audioFiles]
-    # Also, grab the original audio
-  dubbed = AudioSegment.from_file(videoPath)
+    segments = [AudioSegment.from_mp3(os.path.join(audioDir, x)) for x in audioFiles]
+    dubbed = AudioSegment.from_file(videoPath)
 
-  for position, segment in zip(startPostions, segments):
-    dubbed = dubbed.overlay(segment, position=position * 1000, gain_during_overlay= -30)
+    for position, segment in zip(startPostions, segments):
+        dubbed = dubbed.overlay(segment, position=position * 1000, gain_during_overlay= -50)
 
-  audioFile = tempfile.NamedTemporaryFile()
-  dubbed.export(audioFile)
-  audioFile.flush()
+    audioFile = tempfile.NamedTemporaryFile()
+    dubbed.export(audioFile)
+    audioFile.flush()
 
-  # Add the new audio to the video and save it
-  clip = VideoFileClip(videoPath)
-  audio = AudioFileClip(audioFile.name)
-  clip = clip.set_audio(audio)
+    clip = VideoFileClip(videoPath)
+    audio = AudioFileClip(audioFile.name)
+    clip = clip.set_audio(audio)
 
-  clip.write_videofile(outputPath, codec='libx264', audio_codec='aac')
-  audioFile.close()
+    clip.write_videofile(outputPath, codec='libx264', audio_codec='aac')
+    audioFile.close()
 
 def dub(
         videoPath, outputDir, srcLang, targetLangs=[],
-        storageBucket=None, phraseHints=[],
-        speakerCount=1, voices={}, genAudio=False):
-    """Translate and dub a movie.
-
-    Args:
-        videoPath (String): File to dub
-        outputDir (String): Directory to write output files
-        srcLang (String): Language code to translate from (i.e. "fi")
-        targetLangs (list, optional): Languages to translate too, i.e. ["en", "fr"]
-        storageBucket (String, optional): GCS bucket for temporary file storage. Defaults to None.
-        phraseHints (list, optional): "Hints" for words likely to appear in audio. Defaults to [].
-        dubSrc (bool, optional): Whether to generate dubs in the source language. Defaults to False.
-        speakerCount (int, optional): How many speakers in the video. Defaults to 1.
-        voices (dict, optional): Which voices to use for dubbing, i.e. {"en": "en-AU-Standard-A"}. Defaults to {}.
-        srt (bool, optional): Path of SRT transcript file, if it exists. Defaults to False.
-        newDir (bool, optional): Whether to start dubbing from scratch or use files in outputDir. Defaults to False.
-        genAudio (bool, optional): Generate new audio, even if it's already been generated. Defaults to False.
-        noTranslate (bool, optional): Don't translate. Defaults to False.
-
-    Raises:
-        void : Writes dubbed video and intermediate files to outputDir
-    """
+        storageBucket=None, speakerCount=1, voices={}, genAudio=False):
 
     videoName = os.path.split(videoPath)[-1].split('.')[0]
-
     if not os.path.exists(outputDir):
         os.mkdir(outputDir)
 
@@ -282,7 +202,6 @@ def dub(
         print("Extracting audio from video")
         outputAudioPath = f"{outputDir}/{videoName}.mp3"
         extract_audio(videoPath, outputAudioPath)
-        print(f"Wrote {outputAudioPath}")
 
     sentences = []
     startPositions = []
@@ -297,7 +216,7 @@ def dub(
     
     translatedSentences = {}
     for lang in targetLangs:
-        print(f"Translating to {lang}")
+        print(f"Translating the text")
         translatedSentences[lang] = []
         for sentence in sentences:
             translatedSentences[lang].append(translate_text(sentence, lang))
@@ -311,7 +230,6 @@ def dub(
         if os.path.exists(languageDir):
             shutil.rmtree(languageDir)
         os.mkdir(languageDir)
-        print(f"Synthesizing audio for {lang}")
         
         for i, sentence in enumerate(translatedSentences[lang]):
             voiceName = voices[lang] if lang in voices else None
@@ -326,7 +244,7 @@ def dub(
         os.mkdir(dubbedDir)
 
     for lang in targetLangs:
-        print(f"Dubbing audio for {lang}")
+        print(f"merging generated audio with video")
         outFile = f"{dubbedDir}/{videoName}[{lang}].mp4"
         merge_audio(startPositions, f"{audioDir}/{lang}", videoPath, outFile) 
 
