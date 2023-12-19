@@ -180,7 +180,7 @@ def merge_audio(startPostions, audioDir, videoPath, outputPath, lags, currentDur
         dubbed = dubbed.overlay(segment, position=position * 1000, gain_during_overlay= -50)
         if lag != 0:
             emptyLag = emptySegment[:lag * 1000]
-            dubbed = dubbed.overlay(emptyLag, position=position+duration, gain_during_overlay = -50)
+            dubbed = dubbed.overlay(emptyLag, position=position+duration, gain_during_overlay = -100)
         
 
     audioFile = tempfile.NamedTemporaryFile()

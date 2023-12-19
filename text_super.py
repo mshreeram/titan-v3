@@ -9,7 +9,7 @@ def text_super(video_path, baseName, translate_lang):
   fps = cam.get(cv2.CAP_PROP_FPS)
   print("FPS:", fps)
   subtitles = []
-  time_interval = 1
+  time_interval = 4
   frame_interval = int(time_interval * fps)
   print(frame_interval)
   n = 0
@@ -30,7 +30,7 @@ def text_super(video_path, baseName, translate_lang):
       except:
         pass
       translated_text = translater_func(text, translate_lang.split("-").pop(0))
-      subtitles.append((timestamp_sec, timestamp_sec + 1, translated_text))
+      subtitles.append((timestamp_sec, timestamp_sec + 4, translated_text))
       i += 1
 
     n += 1
