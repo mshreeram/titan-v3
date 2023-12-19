@@ -20,9 +20,14 @@ def text_super(video_path, baseName, translate_lang):
     if n % frame_interval == 0:
       timestamp_ms = cam.get(cv2.CAP_PROP_POS_MSEC)
       timestamp_sec = timestamp_ms / 1000.0  # Convert milliseconds to seconds
-
-      cv2.imwrite(f"static/outdir/{i}.jpg", frame)
-      text = text_extractor(f"static/outdir/{i}.jpg")
+      try:
+        cv2.imwrite(f"static/outdir/{i}.jpg", frame)
+      except:
+        pass
+      try:
+        text = text_extractor(f"static/outdir/{i}.jpg")
+      except:
+        pass
       translated_text = translater_func(text, translate_lang.split("-").pop(0))
       subtitles.append((timestamp_sec, timestamp_sec + 5, translated_text))
       i += 1

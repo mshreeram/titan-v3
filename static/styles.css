@@ -114,7 +114,7 @@ p {
 }
 
 .loading {
-  background: #6c5b7b url(./loading.gif) no-repeat center center;
+  background: rgb(238, 238, 238) url(./loading.gif) no-repeat center center;
   height: 100vh;
   width: 100%;
   position: fixed;
