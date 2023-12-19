@@ -152,7 +152,7 @@ def text_to_speech(text, languageCode, durationSecs, voiceName=None):
     assert len(baseAudio)
 
     min_rate, max_rate = 0.1, 4
-
+    currentDuration = find_duration(baseAudio)
     for i in range(2):
         currentDuration = find_duration(baseAudio)
         print(currentDuration, durationSecs)
@@ -165,17 +165,23 @@ def text_to_speech(text, languageCode, durationSecs, voiceName=None):
 
         baseAudio = speak(text, languageCode, voiceName, speakingRate=ratio)
     
-    return baseAudio
+    return baseAudio, (durationSecs - currentDuration) if durationSecs > currentDuration else 0, currentDuration
 
-def merge_audio(startPostions, audioDir, videoPath, outputPath):
+def merge_audio(startPostions, audioDir, videoPath, outputPath, lags, currentDurations):
     audioFiles = os.listdir(audioDir)
     audioFiles.sort(key=lambda x: int(x.split('.')[0]))
 
     segments = [AudioSegment.from_mp3(os.path.join(audioDir, x)) for x in audioFiles]
     dubbed = AudioSegment.from_file(videoPath)
 
-    for position, segment in zip(startPostions, segments):
+    emptySegment = AudioSegment.from_mp3("static/empty-audio.mp3")
+
+    for position, segment, lag, duration in zip(startPostions, segments, lags, currentDurations):
         dubbed = dubbed.overlay(segment, position=position * 1000, gain_during_overlay= -50)
+        if lag != 0:
+            emptyLag = emptySegment[:lag * 1000]
+            dubbed = dubbed.overlay(emptyLag, position=position+duration, gain_during_overlay = -50)
+        
 
     audioFile = tempfile.NamedTemporaryFile()
     dubbed.export(audioFile)
@@ -188,9 +194,7 @@ def merge_audio(startPostions, audioDir, videoPath, outputPath):
     clip.write_videofile(outputPath, codec='libx264', audio_codec='aac')
     audioFile.close()
 
-def dub(
-        videoPath, outputDir, srcLang, targetLangs=[],
-        storageBucket=None, speakerCount=1, voices={}, genAudio=False):
+def dub(videoPath, outputDir, srcLang, targetLangs=[], speakerCount=1, voices={}, genAudio=False):
 
     videoName = os.path.split(videoPath)[-1].split('.')[0]
     if not os.path.exists(outputDir):
@@ -206,6 +210,8 @@ def dub(
     sentences = []
     startPositions = []
     durations = []
+    lags = []
+    currentDurations = []
 
     if not "transcript.srt" in outputFiles:
         outputSrtPath = f"{outputDir}/transcript.srt"
@@ -233,7 +239,10 @@ def dub(
         
         for i, sentence in enumerate(translatedSentences[lang]):
             voiceName = voices[lang] if lang in voices else None
-            audio = text_to_speech(sentence, lang, durations[i], voiceName=voiceName)
+            audio, lag, currentDuration = text_to_speech(sentence, lang, durations[i], voiceName=voiceName)
+
+            lags.append(lag)
+            currentDurations.append(currentDuration)
 
             with open(f"{languageDir}/{i}.mp3", 'wb') as f: 
                 f.write(audio)
@@ -246,6 +255,6 @@ def dub(
     for lang in targetLangs:
         print(f"merging generated audio with video")
         outFile = f"{dubbedDir}/{videoName}[{lang}].mp4"
-        merge_audio(startPositions, f"{audioDir}/{lang}", videoPath, outFile) 
+        merge_audio(startPositions, f"{audioDir}/{lang}", videoPath, outFile, lags, currentDurations) 
 
     print("Done")
