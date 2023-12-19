@@ -44,10 +44,10 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/download', methods = ['POST', 'GET'])
-def download():
-  global baseName, f, translate_lang
-  return send_file(f"static/outdir/dubbedVideos/{baseName}[{translate_lang}].mp4", as_attachment=True, download_name=f"{baseName}[{translate_lang}].mp4")
+# @app.route('/download', methods = ['POST', 'GET'])
+# def download():
+#   global baseName, f, translate_lang
+#   return send_file(f"static/outdir/dubbedVideos/{baseName}[{translate_lang}].mp4", as_attachment=True, download_name=f"{baseName}[{translate_lang}].mp4")
 
 if __name__ == '__main__':
   app.run(debug = True, port=3000)

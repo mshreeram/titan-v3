@@ -1,6 +1,16 @@
 {% extends 'base.html' %} {% block head %}
 <div class="main-video">
-  {% if translate != None %}
+  {% if translate == None %}
+  <video id="translated" width="300" height="300" controls>
+    <source
+      src="{{ url_for('static', filename='outdir/dubbedVideos/' + filename + '.mp4') }}"
+    />
+  </video>
+
+  <!-- <form action="/download" method="post">
+    <button type="submit" id="download">Download</button>
+  </form> -->
+  {% endif %} {% if translate != None %}
   <div class="seperator">Video with Translated Text-Supers</div>
   <video id="translated" width="300" height="300" controls>
     <source
@@ -8,10 +18,6 @@
     />
   </video>
   {% endif %}
-
-  <form action="/download" method="post">
-    <button type="submit" id="upload">Download</button>
-  </form>
 </div>
 
 {% endblock %}

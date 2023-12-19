@@ -66,6 +66,7 @@ p {
   padding: 12px 24px;
   border: 2px solid rgb(103, 51, 249);
   border-radius: 5px;
+  align-self: center;
 }
 
 .options {
